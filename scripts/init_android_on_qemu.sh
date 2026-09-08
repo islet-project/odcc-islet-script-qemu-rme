@@ -95,7 +95,7 @@ function prepare_chrony_configuration()
                 exit $EXIT_OTHER
         fi
 
-        echo -n "Copying chrony certificates and configuration file... "
+        echo "Copying chrony certificates and configuration file... "
         pushd $RKIK_NTS_DIR > /dev/null
         sudo cp chrony/chrony.conf /etc/chrony/
         sudo cp chrony/certs/nts-devel.key /etc/chrony/
@@ -106,6 +106,8 @@ function prepare_chrony_configuration()
         sudo chmod 644 /etc/chrony/nts-devel.crt
         popd > /dev/null
         echo "DONE"
+	echo "Restarting the chrony daemon"
+	sudo systemctl restart chrony
 }
 
 function build_aosp()
