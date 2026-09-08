@@ -35,6 +35,12 @@ GUEST_ANDROID_KERNEL_BUILD_TARGET="//common:kernel_aarch64_microdroid_dist"
 
 GUEST_ANDROID_KERNEL_IMG_PATH="$GUEST_ANDROID_KERNEL_DIR/out/kernel_aarch64_microdroid/dist/Image"
 
+# Configuration for Chrony NTP/NTS service taken from rkik-nts repository
+RKIK_NTS_URL="https://github.com/islet-project/rkik-nts.git"
+RKIK_NTS_BRANCH="master"
+RKIK_NTS_DIR="chrony-conf"
+RKIK_NTS_CHRONY_CONFIG_DIR="chrony"
+CHRONY_SYS_CONFIG_DIR="/etc/chrony/"
 
 # Exit codes
 EXIT_CD_FAILED=1
@@ -62,6 +68,44 @@ function install_required_packages()
 			libpixman-1-dev \
 			pkg-config
 	fi
+
+
+	if ! dpkg -s chrony &>/dev/null; then
+		sudo apt-get install -y chrony
+	fi
+}
+
+function prepare_chrony_configuration()
+{
+        echo " "
+        echo "[!] Prepare Chrony configuration"
+
+        if [ -d "$RKIK_NTS_DIR" ]; then
+                echo "$RKIK_NTS_DIR already exist."
+        else
+                git clone --no-checkout --depth=1 --filter=tree:0 $RKIK_NTS_URL $RKIK_NTS_DIR
+                pushd $RKIK_NTS_DIR > /dev/null
+                git sparse-checkout set --no-cone /$RKIK_NTS_CHRONY_CONFIG_DIR
+                git checkout
+                popd > /dev/null
+        fi
+
+        if [ ! -d "$CHRONY_SYS_CONFIG_DIR" ]; then
+                echo "Chrony is not installed!"
+                exit $EXIT_OTHER
+        fi
+
+        echo -n "Copying chrony certificates and configuration file... "
+        pushd $RKIK_NTS_DIR > /dev/null
+        sudo cp chrony/chrony.conf /etc/chrony/
+        sudo cp chrony/certs/nts-devel.key /etc/chrony/
+        sudo cp chrony/certs/nts-devel.crt /etc/chrony/
+        sudo chown _chrony:_chrony /etc/chrony/nts-devel.key
+        sudo chown _chrony:_chrony /etc/chrony/nts-devel.crt
+        sudo chmod 440 /etc/chrony/nts-devel.key
+        sudo chmod 644 /etc/chrony/nts-devel.crt
+        popd > /dev/null
+        echo "DONE"
 }
 
 function build_aosp()
@@ -209,6 +253,7 @@ function build_bootconfig() {
 
 install_required_packages
 
+prepare_chrony_configuration
 build_guest_android_kernel
 build_host_android_kernel
 build_bootconfig
